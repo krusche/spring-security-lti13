@@ -9,7 +9,6 @@ import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AuthorizationRequest;
 import org.springframework.security.oauth2.core.endpoint.OAuth2ParameterNames;
 import org.springframework.security.web.util.UrlUtils;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.util.Assert;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -31,12 +30,12 @@ import java.util.UUID;
  */
 public class OIDCInitiatingLoginRequestResolver implements OAuth2AuthorizationRequestResolver {
 
-    private static final String REGISTRATION_ID_URI_VARIABLE_NAME = "registrationId";
     private final ClientRegistrationRepository clientRegistrationRepository;
-    private final AntPathRequestMatcher authorizationRequestMatcher;
+    private final OIDCInitiationRegistrationResolver registrationResolver;
     // The IMS LTI 1.3 Validator doesn't include = (%3D URL encoded) in state tokens.
     // private final StringKeyGenerator stateGenerator = new Base64StringKeyGenerator(Base64.getUrlEncoder());
     private final StringKeyGenerator stateGenerator = KeyGenerators.string();
+    
 
 
     /**
@@ -50,13 +49,26 @@ public class OIDCInitiatingLoginRequestResolver implements OAuth2AuthorizationRe
         Assert.notNull(clientRegistrationRepository, "clientRegistrationRepository cannot be null");
         Assert.hasText(authorizationRequestBaseUri, "authorizationRequestBaseUri cannot be empty");
         this.clientRegistrationRepository = clientRegistrationRepository;
-        this.authorizationRequestMatcher = new AntPathRequestMatcher(
-                authorizationRequestBaseUri + "/{" + REGISTRATION_ID_URI_VARIABLE_NAME + "}");
+        this.registrationResolver = new PathOIDCInitiationRegistrationResolver(authorizationRequestBaseUri);
+    }
+
+    /**
+     * Constructs a {@code DefaultOAuth2AuthorizationRequestResolver} using the provided parameters.
+     *
+     * @param clientRegistrationRepository the repository of client registrations
+     * @param registrationResolver a resolver that looks up the registration ID from the request
+     */
+    public OIDCInitiatingLoginRequestResolver(ClientRegistrationRepository clientRegistrationRepository,
+                                              OIDCInitiationRegistrationResolver registrationResolver) {
+        Assert.notNull(clientRegistrationRepository, "clientRegistrationRepository cannot be null");
+        Assert.notNull(registrationResolver, "registrationResolver cannot be null");
+        this.clientRegistrationRepository = clientRegistrationRepository;
+        this.registrationResolver = registrationResolver;
     }
 
     @Override
     public OAuth2AuthorizationRequest resolve(HttpServletRequest request) {
-        String registrationId = this.resolveRegistrationId(request);
+        String registrationId = this.registrationResolver.resolve(request);
         return resolve(request, registrationId, "login");
     }
 
@@ -75,7 +87,8 @@ public class OIDCInitiatingLoginRequestResolver implements OAuth2AuthorizationRe
 
         ClientRegistration clientRegistration = this.clientRegistrationRepository.findByRegistrationId(registrationId);
         if (clientRegistration == null) {
-            throw new IllegalArgumentException("Invalid Client Registration with Id: " + registrationId);
+            // We use a custom exception here so callers can specifically handle this case.
+            throw new InvalidClientRegistrationIdException("No Client Registration found with ID: " + registrationId);
         }
 
         OAuth2AuthorizationRequest.Builder builder;
@@ -83,6 +96,7 @@ public class OIDCInitiatingLoginRequestResolver implements OAuth2AuthorizationRe
         if (AuthorizationGrantType.AUTHORIZATION_CODE.equals(clientRegistration.getAuthorizationGrantType())) {
             builder = OAuth2AuthorizationRequest.authorizationCode();
         } else {
+            // This is a configuration problem.
             throw new IllegalArgumentException("Invalid Authorization Grant Type ("  +
                     clientRegistration.getAuthorizationGrantType().getValue() +
                     ") for Client Registration with Id: " + clientRegistration.getRegistrationId());
@@ -90,17 +104,17 @@ public class OIDCInitiatingLoginRequestResolver implements OAuth2AuthorizationRe
 
         String iss = request.getParameter("iss");
         if (iss == null) {
-            throw new IllegalArgumentException("Required parameter iss was not supplied.");
+            throw new InvalidInitiationRequestException("Required parameter iss was not supplied.");
         }
 
         String loginHint = request.getParameter("login_hint");
         if (loginHint == null) {
-            throw new IllegalArgumentException("Required parameter login_hint was not supplied.");
+            throw new InvalidInitiationRequestException("Required parameter login_hint was not supplied.");
         }
 
         String targetLinkUri = request.getParameter("target_link_uri");
         if (targetLinkUri == null) {
-            throw new IllegalArgumentException("Required parameter target_link_uri was not supplied");
+            throw new InvalidInitiationRequestException("Required parameter target_link_uri was not supplied");
         }
 
         String redirectUriStr = this.expandRedirectUri(request, clientRegistration, redirectUriAction);
@@ -141,14 +155,6 @@ public class OIDCInitiatingLoginRequestResolver implements OAuth2AuthorizationRe
                 .build();
 
         return authorizationRequest;
-    }
-
-    private String resolveRegistrationId(HttpServletRequest request) {
-        if (this.authorizationRequestMatcher.matches(request)) {
-            return this.authorizationRequestMatcher
-                    .extractUriTemplateVariables(request).get(REGISTRATION_ID_URI_VARIABLE_NAME);
-        }
-        return null;
     }
 
     private String expandRedirectUri(HttpServletRequest request, ClientRegistration clientRegistration, String action) {

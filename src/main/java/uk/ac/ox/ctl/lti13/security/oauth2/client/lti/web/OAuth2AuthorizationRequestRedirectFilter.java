@@ -179,7 +179,9 @@ public class OAuth2AuthorizationRequestRedirectFilter extends OncePerRequestFilt
 			this.authorizationRequestRepository.saveAuthorizationRequest(authorizationRequest, request, response);
 		}
 		
-		if (authorizationRequestRepository.hasWorkingSession(request)) {
+		// Currently in Canvas it always says we support the storage platform, but the mobile apps 
+		// currently don't and so shouldn't send through this parameter.
+		if (authorizationRequestRepository.hasWorkingSession(request) || hasNoPlatform(request)) {
 			// Standard session based usage so we just do a normal browser redirect.
 			this.authorizationRedirectStrategy.sendRedirect(request, response, authorizationRequest.getAuthorizationRequestUri());
 		} else {
@@ -190,13 +192,28 @@ public class OAuth2AuthorizationRequestRedirectFilter extends OncePerRequestFilt
 		// the current request here.
 	}
 
+	/**
+	 * Check that the LTI Storage Platform is unavailable.
+	 * @param request The HttpServletRequet to look into.
+	 * @return true if the service launching the LTI tool doesn't support the LTI Storage Platform.
+	 */
+	private boolean hasNoPlatform(HttpServletRequest request) {
+		return request.getParameter("lti_storage_target") == null;
+	}
+
 	private void unsuccessfulRedirectForAuthorization(HttpServletRequest request, HttpServletResponse response,
                                                       Exception failed) throws IOException, ServletException {
 
-		if (logger.isErrorEnabled()) {
+		if (failed instanceof InvalidInitiationRequestException) {
+			logger.info("Invalid initiation request: "+ failed);
+			response.sendError(HttpStatus.BAD_REQUEST.value(), failed.getMessage());
+		} else if (failed instanceof InvalidClientRegistrationIdException) {
+			logger.info("Invalid registration ID: "+ failed);
+			response.sendError(HttpStatus.NOT_FOUND.value(), failed.getMessage());
+		} else {
 			logger.error("Authorization Request failed: " + failed.toString(), failed);
+			response.sendError(HttpStatus.INTERNAL_SERVER_ERROR.value(), HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
 		}
-		response.sendError(HttpStatus.INTERNAL_SERVER_ERROR.value(), HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase());
 	}
 
 	private static final class DefaultThrowableAnalyzer extends ThrowableAnalyzer {

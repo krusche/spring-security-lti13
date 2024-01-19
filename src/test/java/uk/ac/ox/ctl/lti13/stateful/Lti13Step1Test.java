@@ -47,13 +47,13 @@ public class Lti13Step1Test {
     @Test
     public void testStep1Unknown() throws Exception {
         this.mockMvc.perform(post("/lti/login_initiation/unknown"))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().is4xxClientError());
     }
 
     @Test
     public void testStep1Empty() throws Exception {
         this.mockMvc.perform(post("/lti/login_initiation/test"))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().is4xxClientError());
     }
 
     @Test
@@ -66,6 +66,20 @@ public class Lti13Step1Test {
                 )
                 .andExpect(status().is3xxRedirection())
                 // We can't test the cookie as this is done by Spring Security and not the controller
+                .andExpect(redirectedUrlPattern("https://platform.test/auth/**"));
+    }
+
+
+    @Test
+    public void testStep1NoStorageTarget() throws Exception {
+        // There's no explicit support for the LTI storage platform so we assume that we can't use it and just
+        // redirect
+        this.mockMvc.perform(post("/lti/login_initiation/test")
+                        .param("iss", "https://test.com")
+                        .param("login_hint", "hint")
+                        .param("target_link_uri", "https://localhost/")
+                )
+                .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrlPattern("https://platform.test/auth/**"));
     }
 

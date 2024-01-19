@@ -11,7 +11,6 @@ import org.springframework.test.context.junit.jupiter.web.SpringJUnitWebConfig;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.test.context.web.WebAppConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import uk.ac.ox.ctl.lti13.config.Lti13Configuration;
@@ -49,13 +48,13 @@ public class Lti13Step1Test {
     @Test
     public void testStep1Unknown() throws Exception {
         this.mockMvc.perform(post("/lti/login_initiation/unknown"))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().is4xxClientError());
     }
 
     @Test
     public void testStep1Empty() throws Exception {
         this.mockMvc.perform(post("/lti/login_initiation/test"))
-                .andExpect(status().is5xxServerError());
+                .andExpect(status().is4xxClientError());
     }
 
     @Test
@@ -64,11 +63,12 @@ public class Lti13Step1Test {
                     .param("iss", "https://test.com")
                     .param("login_hint", "hint")
                     .param("target_link_uri", "https://localhost/")
+                    .param("lti_storage_target", "_parent")
                 )
                 .andExpect(status().isOk())
                 // Just check that we're putting the right content in the page.
-                .andDo(MockMvcResultHandlers.print())
                 .andExpect(content().string(containsString("https://platform.test/auth/")));
     }
+
 
 }

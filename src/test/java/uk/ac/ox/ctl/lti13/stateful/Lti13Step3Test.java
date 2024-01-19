@@ -14,6 +14,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpStatus;
@@ -38,12 +39,14 @@ import uk.ac.ox.ctl.lti13.lti.Claims;
 import uk.ac.ox.ctl.lti13.security.oauth2.client.lti.authentication.OidcLaunchFlowAuthenticationProvider;
 import uk.ac.ox.ctl.lti13.security.oauth2.client.lti.web.OAuth2LoginAuthenticationFilter;
 import uk.ac.ox.ctl.lti13.security.oauth2.client.lti.web.OptimisticAuthorizationRequestRepository;
+import uk.ac.ox.ctl.lti13.security.oauth2.client.lti.web.StateAuthorizationRequestRepository;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.security.KeyPair;
 import java.security.interfaces.RSAPublicKey;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
@@ -51,6 +54,8 @@ import java.util.Map;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static uk.ac.ox.ctl.lti13.stateful.Lti13Step3Test.CustomLti13Configuration;
 
@@ -71,7 +76,8 @@ public class Lti13Step3Test {
     private KeyPair keyPair;
 
     @Autowired
-    private OptimisticAuthorizationRequestRepository authorizationRequestRepository;
+    @Qualifier("http")
+    private AuthorizationRequestRepository authorizationRequestRepository;
 
 
     @Configuration
@@ -84,9 +90,22 @@ public class Lti13Step3Test {
         @Autowired
         private RestOperations restOperations;
 
+        @Bean(name = "http")
+        AuthorizationRequestRepository authorizationRequestRepository() {
+            return mock(AuthorizationRequestRepository.class);
+        }
+
         @Bean
-        OptimisticAuthorizationRequestRepository authorizationRequestRepository() {
-            return mock(OptimisticAuthorizationRequestRepository.class);
+        StateAuthorizationRequestRepository stateAuthorizationRequestRepository() {
+            return new StateAuthorizationRequestRepository(Duration.ZERO);
+        }
+
+        @Bean
+        OptimisticAuthorizationRequestRepository authorizationRequestRepository(
+                @Qualifier("http") AuthorizationRequestRepository requestRepository,
+                StateAuthorizationRequestRepository stateAuthorizationRequestRepository
+        ) {
+            return new OptimisticAuthorizationRequestRepository(requestRepository, stateAuthorizationRequestRepository);
         }
 
         @Bean
@@ -145,8 +164,28 @@ public class Lti13Step3Test {
 
         when(restOperations.exchange(any(), eq(String.class)))
                 .thenReturn(new ResponseEntity<>(jwkSet().toString(), HttpStatus.OK));
-        mockMvc.perform(get("/lti/login").param("id_token", createJWT(claims)).param("state", "state").cookie(new Cookie("WORKING_COOKIES", "true")))
+        mockMvc.perform(post("/lti/login").param("id_token", createJWT(claims)).param("state", "state").cookie(new Cookie("WORKING_COOKIES", "true")))
                 .andExpect(status().is3xxRedirection());
+    }
+
+    @Test
+    public void testStep3SignedTokenNoCookie() throws Exception {
+        // Here we haven't already marked the browser as having a working session based on cookies, but we 
+        // do manage to retrieve the 
+        JWTClaimsSet claims = createClaims().build();
+
+        OAuth2AuthorizationRequest oAuth2AuthorizationRequest = createAuthRequest().build();
+
+        when(authorizationRequestRepository.loadAuthorizationRequest(any(HttpServletRequest.class)))
+                .thenReturn(oAuth2AuthorizationRequest);
+        when(authorizationRequestRepository.removeAuthorizationRequest(any(HttpServletRequest.class), any(HttpServletResponse.class)))
+                .thenReturn(oAuth2AuthorizationRequest);
+
+        when(restOperations.exchange(any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(jwkSet().toString(), HttpStatus.OK));
+        mockMvc.perform(post("/lti/login").param("id_token", createJWT(claims)).param("state", "state"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(cookie().exists("WORKING_COOKIES"));
     }
 
     @Test
@@ -161,13 +200,27 @@ public class Lti13Step3Test {
 
         when(restOperations.exchange(any(), eq(String.class)))
                 .thenReturn(new ResponseEntity<>(jwkSet().toString(), HttpStatus.OK));
-        mockMvc.perform(get("/lti/login").param("id_token", createJWT(claims)).param("state", "state"))
+        mockMvc.perform(post("/lti/login").param("id_token", createJWT(claims)).param("state", "state"))
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    public void testStep3Error() throws Exception {
+        OAuth2AuthorizationRequest oAuth2AuthorizationRequest = createAuthRequest().build();
+
+        when(authorizationRequestRepository.removeAuthorizationRequest(any(HttpServletRequest.class), any(HttpServletResponse.class)))
+                .thenReturn(oAuth2AuthorizationRequest);
+
+        when(restOperations.exchange(any(), eq(String.class)))
+                .thenReturn(new ResponseEntity<>(jwkSet().toString(), HttpStatus.OK));
+        // Check that when we return an actual error it gets correctly handled.
+        mockMvc.perform(post("/lti/login").param("error", "problem").param("state", "state"))
                 .andExpect(status().is4xxClientError());
     }
 
     @Test
     public void testStep3Empty() throws Exception {
-        this.mockMvc.perform(get("/lti/login"))
+        this.mockMvc.perform(post("/lti/login"))
                 .andExpect(status().is4xxClientError());
     }
 
@@ -194,17 +247,17 @@ public class Lti13Step3Test {
 
     private JWTClaimsSet.Builder createClaims() {
         return new JWTClaimsSet.Builder()
-                    .issuer("https://platform.test")
-                    .subject("subject")
-                    .claim("scope", "openid")
-                    .audience("test-id")
-                    .issueTime(new Date())
-                    .expirationTime(Date.from(Instant.now().plusSeconds(300)))
-                    .claim("nonce", "test-nonce")
-                    .claim(Claims.LTI_VERSION, "1.3.0")
-                    .claim(Claims.MESSAGE_TYPE, "unchecked")
-                    .claim(Claims.ROLES, "")
-                    .claim(Claims.LTI_DEPLOYMENT_ID, "1");
+                .issuer("https://platform.test")
+                .subject("subject")
+                .claim("scope", "openid")
+                .audience("test-id")
+                .issueTime(new Date())
+                .expirationTime(Date.from(Instant.now().plusSeconds(300)))
+                .claim("nonce", "test-nonce")
+                .claim(Claims.LTI_VERSION, "1.3.0")
+                .claim(Claims.MESSAGE_TYPE, "unchecked")
+                .claim(Claims.ROLES, "")
+                .claim(Claims.LTI_DEPLOYMENT_ID, "1");
     }
 
     private JWKSet jwkSet() {
