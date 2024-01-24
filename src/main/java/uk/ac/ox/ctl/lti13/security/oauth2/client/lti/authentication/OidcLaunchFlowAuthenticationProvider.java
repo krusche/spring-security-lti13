@@ -177,12 +177,11 @@ public class OidcLaunchFlowAuthenticationProvider implements AuthenticationProvi
 		if (jwtDecoder == null) {
 			// TODO This should look at the Cache-Control header so to expire old jwtDecoders.
 			// Canvas looks to rotate it's keys monthly.
-			String jwkSetUri = clientRegistration.getProviderDetails().getJwkSetUri();
 			NimbusJwtDecoder.JwkSetUriJwtDecoderBuilder decoderBuilder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).jwsAlgorithm(SignatureAlgorithm.from(JwsAlgorithms.RS256));
 			if (restOperations != null) {
 				decoderBuilder.restOperations(restOperations);
 			}
-			jwtDecoder = nimbusJwtDecoderJwkSupport;
+			jwtDecoder = decoderBuilder.build();
 			this.jwtDecoders.put(jwkSetUri, jwtDecoder);
 		}
 		return jwtDecoder;
