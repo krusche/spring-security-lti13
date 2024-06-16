@@ -11,5 +11,4 @@ class InvalidClientRegistrationIdException extends IllegalArgumentException {
 	InvalidClientRegistrationIdException(String message) {
 		super(message);
 	}
-
 }

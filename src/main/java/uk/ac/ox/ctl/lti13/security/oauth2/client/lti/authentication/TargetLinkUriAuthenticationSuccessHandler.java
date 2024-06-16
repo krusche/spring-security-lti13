@@ -24,8 +24,7 @@ public class TargetLinkUriAuthenticationSuccessHandler extends StateCheckingAuth
     @Override
     protected String determineTargetUrl(HttpServletRequest request,
                                         HttpServletResponse response, Authentication authentication) {
-        if (authentication instanceof OAuth2AuthenticationToken) {
-            OAuth2AuthenticationToken token = (OAuth2AuthenticationToken) authentication;
+        if (authentication instanceof OAuth2AuthenticationToken token) {
             // https://www.imsglobal.org/spec/lti/v1p3/#target-link-uri says we should only trust this and not
             // the parameter passed in on the initial login initiation request.
             String targetLink = token.getPrincipal().getAttribute(Claims.TARGET_LINK_URI);

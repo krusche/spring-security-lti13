@@ -20,8 +20,7 @@ public class PathOIDCInitiationRegistrationResolver implements OIDCInitiationReg
     @Override
     public String resolve(HttpServletRequest request) {
         if (this.authorizationRequestMatcher.matches(request)) {
-            return this.authorizationRequestMatcher
-                    .extractUriTemplateVariables(request).get(REGISTRATION_ID_URI_VARIABLE_NAME);
+            return this.authorizationRequestMatcher.matcher(request).getVariables().get(REGISTRATION_ID_URI_VARIABLE_NAME);
         }
         return null;
     }

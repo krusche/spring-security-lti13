@@ -144,7 +144,7 @@ public class OIDCInitiatingLoginRequestResolver implements OAuth2AuthorizationRe
         // the same IP address.
         attributes.put(StateAuthorizationRequestRepository.REMOTE_IP, request.getRemoteAddr());
 
-        OAuth2AuthorizationRequest authorizationRequest = builder
+        return builder
                 .clientId(clientRegistration.getClientId())
                 .authorizationUri(clientRegistration.getProviderDetails().getAuthorizationUri())
                 .redirectUri(redirectUriStr)
@@ -153,8 +153,6 @@ public class OIDCInitiatingLoginRequestResolver implements OAuth2AuthorizationRe
                 .additionalParameters(additionalParameters)
                 .attributes(attributes)
                 .build();
-
-        return authorizationRequest;
     }
 
     private String expandRedirectUri(HttpServletRequest request, ClientRegistration clientRegistration, String action) {

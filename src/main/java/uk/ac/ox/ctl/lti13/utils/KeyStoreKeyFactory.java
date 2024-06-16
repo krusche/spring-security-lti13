@@ -33,13 +33,13 @@ import java.security.spec.RSAPublicKeySpec;
  */
 public class KeyStoreKeyFactory {
 
-	private Resource resource;
+	private final Resource resource;
 
-	private char[] password;
+	private final char[] password;
 
 	private KeyStore store;
 
-	private Object lock = new Object();
+	private final Object lock = new Object();
 
 	public KeyStoreKeyFactory(Resource resource, char[] password) {
 		this.resource = resource;

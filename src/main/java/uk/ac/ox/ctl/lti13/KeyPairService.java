@@ -16,7 +16,7 @@ public interface KeyPairService {
 
     /**
      * Gets the key ID to be used with a particular client.
-     * @param clientRegistration Thie client's registration ID.
+     * @param clientRegistration The client's registration ID.
      * @return The Key ID to use.
      */
     String getKeyId(String clientRegistration);

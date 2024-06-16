@@ -80,13 +80,13 @@ public class OAuth2AuthorizationRequestRedirectFilter extends OncePerRequestFilt
 
 	private final ThrowableAnalyzer throwableAnalyzer = new DefaultThrowableAnalyzer();
 	private final RedirectStrategy authorizationRedirectStrategy = new DefaultRedirectStrategy();
-	private OAuth2AuthorizationRequestResolver authorizationRequestResolver;
+	private final OAuth2AuthorizationRequestResolver authorizationRequestResolver;
 	private OptimisticAuthorizationRequestRepository authorizationRequestRepository =
 		new OptimisticAuthorizationRequestRepository(
 				new HttpSessionOAuth2AuthorizationRequestRepository(),
 				new StateAuthorizationRequestRepository(Duration.ofMinutes(1))
 		);
-	private AuthorizationRedirectHandler stateAuthorizationRedirectHandler = new StateAuthorizationRedirectHandler();
+	private final AuthorizationRedirectHandler stateAuthorizationRedirectHandler = new StateAuthorizationRedirectHandler();
 
 	/**
 	 * Constructs an {@code OAuth2AuthorizationRequestRedirectFilter} using the provided parameters.
@@ -134,7 +134,7 @@ public class OAuth2AuthorizationRequestRedirectFilter extends OncePerRequestFilt
 				return;
 			}
 		} catch (Exception failed) {
-			this.unsuccessfulRedirectForAuthorization(request, response, failed);
+			this.unsuccessfulRedirectForAuthorization(response, failed);
 			return;
 		}
 
@@ -155,15 +155,13 @@ public class OAuth2AuthorizationRequestRedirectFilter extends OncePerRequestFilt
 					}
 					this.sendRedirectForAuthorization(request, response, authorizationRequest);
 				} catch (Exception failed) {
-					this.unsuccessfulRedirectForAuthorization(request, response, failed);
+					this.unsuccessfulRedirectForAuthorization(response, failed);
 				}
 				return;
 			}
 
 			if (ex instanceof ServletException) {
 				throw (ServletException) ex;
-			} else if (ex instanceof RuntimeException) {
-				throw (RuntimeException) ex;
 			} else {
 				throw new RuntimeException(ex);
 			}
@@ -201,8 +199,8 @@ public class OAuth2AuthorizationRequestRedirectFilter extends OncePerRequestFilt
 		return request.getParameter("lti_storage_target") == null;
 	}
 
-	private void unsuccessfulRedirectForAuthorization(HttpServletRequest request, HttpServletResponse response,
-                                                      Exception failed) throws IOException, ServletException {
+	private void unsuccessfulRedirectForAuthorization(HttpServletResponse response,
+													  Exception failed) throws IOException {
 
 		if (failed instanceof InvalidInitiationRequestException) {
 			logger.info("Invalid initiation request: "+ failed);

@@ -11,7 +11,7 @@ import java.time.Instant;
 
 public class OAuth2Interceptor implements ClientHttpRequestInterceptor {
 
-    private OAuth2AccessToken accessToken;
+    private final OAuth2AccessToken accessToken;
 
     public OAuth2Interceptor(OAuth2AccessToken accessToken) {
         this.accessToken = accessToken;

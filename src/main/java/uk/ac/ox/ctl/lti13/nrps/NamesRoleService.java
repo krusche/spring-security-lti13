@@ -12,8 +12,8 @@ import uk.ac.ox.ctl.lti13.TokenRetriever;
 import uk.ac.ox.ctl.lti13.lti.Claims;
 import uk.ac.ox.ctl.lti13.security.oauth2.client.lti.authentication.OidcLaunchFlowToken;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
 public class NamesRoleService {
@@ -30,15 +30,13 @@ public class NamesRoleService {
         OidcUser principal = oAuth2AuthenticationToken.getPrincipal();
         if (principal != null) {
             Object o = principal.getClaims().get(LtiScopes.LTI_NRPS_CLAIM);
-            if (o instanceof JSONObject) {
-                JSONObject json = (JSONObject)o;
+            if (o instanceof JSONObject json) {
                 String contextMembershipsUrl = json.getAsString("context_memberships_url");
                 if (contextMembershipsUrl != null && !contextMembershipsUrl.isEmpty()) {
                     // Got a URL to go to.
                     Object r = principal.getClaims().get(Claims.RESOURCE_LINK);
                     String resourceLinkId = null;
-                    if (includeResourceLink && r instanceof JSONObject) {
-                        JSONObject resourceJson = (JSONObject) r;
+                    if (includeResourceLink && r instanceof JSONObject resourceJson) {
                         resourceLinkId = resourceJson.getAsString("id");
                     }
                     return loadMembers(contextMembershipsUrl, resourceLinkId, oAuth2AuthenticationToken.getClientRegistration().getRegistrationId());
@@ -59,19 +57,15 @@ public class NamesRoleService {
 
             String url = contextMembershipsUrl;
             if (resourceLinkId != null) {
-                url = url + "?rlid="+ URLEncoder.encode(resourceLinkId, "UTF-8");
+                url = url + "?rlid="+ URLEncoder.encode(resourceLinkId, StandardCharsets.UTF_8);
             }
             RestTemplate client = new RestTemplate();
             client.setInterceptors(Collections.singletonList(new OAuth2Interceptor(token.getAccessToken())));
             // TODO Needs to set accept header to: application/vnd.ims.lti-nrps.v2.membershipcontainer+json
             // TODO Needs to handle Link headers
-            NRPSResponse response = client.getForObject(url, NRPSResponse.class);
-            return response;
+            return client.getForObject(url, NRPSResponse.class);
         } catch (JOSEException e) {
             throw new RuntimeException("Failed to sign JWT", e);
-        } catch (UnsupportedEncodingException e) {
-            // This should never happen
-            throw new RuntimeException("Unable to find encoding.", e);
         }
     }
 }

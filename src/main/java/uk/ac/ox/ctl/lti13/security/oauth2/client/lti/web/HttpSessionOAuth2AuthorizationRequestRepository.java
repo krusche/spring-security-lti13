@@ -93,7 +93,7 @@ public final class HttpSessionOAuth2AuthorizationRequestRepository
         }
         Map<String, OAuth2AuthorizationRequest> authorizationRequests = this.getAuthorizationRequests(request);
         OAuth2AuthorizationRequest originalRequest = authorizationRequests.remove(stateParameter);
-        if (authorizationRequests.size() == 0) {
+        if (authorizationRequests.isEmpty()) {
             request.getSession().removeAttribute(this.sessionAttributeName);
         }
         else if (authorizationRequests.size() == 1) {
@@ -125,29 +125,28 @@ public final class HttpSessionOAuth2AuthorizationRequestRepository
     /**
      * Gets a non-null and mutable map of {@link OAuth2AuthorizationRequest#getState()} to
      * an {@link OAuth2AuthorizationRequest}
-     * @param request
+     * @param request the http request
      * @return a non-null and mutable map of {@link OAuth2AuthorizationRequest#getState()}
      * to an {@link OAuth2AuthorizationRequest}.
      */
     private Map<String, OAuth2AuthorizationRequest> getAuthorizationRequests(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         Object sessionAttributeValue = (session != null) ? session.getAttribute(this.sessionAttributeName) : null;
-        if (sessionAttributeValue == null) {
-            return new HashMap<>();
-        }
-        else if (sessionAttributeValue instanceof OAuth2AuthorizationRequest) {
-            OAuth2AuthorizationRequest auth2AuthorizationRequest = (OAuth2AuthorizationRequest) sessionAttributeValue;
-            Map<String, OAuth2AuthorizationRequest> authorizationRequests = createLRUMap(maxConcurrentLogins);
-            authorizationRequests.put(auth2AuthorizationRequest.getState(), auth2AuthorizationRequest);
-            return authorizationRequests;
-        }
-        else if (sessionAttributeValue instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, OAuth2AuthorizationRequest> authorizationRequests = (Map<String, OAuth2AuthorizationRequest>) sessionAttributeValue;
-            return authorizationRequests;
-        }
-        else {
-            throw new IllegalStateException(
+        switch (sessionAttributeValue) {
+            case null -> {
+                return new HashMap<>();
+            }
+            case OAuth2AuthorizationRequest auth2AuthorizationRequest -> {
+                Map<String, OAuth2AuthorizationRequest> authorizationRequests = createLRUMap(maxConcurrentLogins);
+                authorizationRequests.put(auth2AuthorizationRequest.getState(), auth2AuthorizationRequest);
+                return authorizationRequests;
+            }
+            case Map<?, ?> sessionAttributeMap -> {
+                @SuppressWarnings("unchecked")
+                var authorizationRequests = (Map<String, OAuth2AuthorizationRequest>) sessionAttributeMap;
+                return authorizationRequests;
+            }
+            default -> throw new IllegalStateException(
                     "authorizationRequests is supposed to be a Map or OAuth2AuthorizationRequest but actually is a "
                             + sessionAttributeValue.getClass());
         }
@@ -174,7 +173,7 @@ public final class HttpSessionOAuth2AuthorizationRequestRepository
      * @return a LinkedHashMap that limits its size.
      */
     public static <K, V> Map<K, V> createLRUMap(final int maxEntries) {
-        return new LinkedHashMap<K, V>(maxEntries*10/7, 0.7f, true) {
+        return new LinkedHashMap<>(maxEntries*10/7, 0.7f, true) {
             @Override
             protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
                 return size() > maxEntries;

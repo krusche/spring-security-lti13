@@ -85,16 +85,16 @@ public class OidcLaunchFlowAuthenticationProvider implements AuthenticationProvi
 		// scope
 		// 		REQUIRED. OpenID Connect requests MUST contain the "openid" scope value.
 		if (!authorizationCodeAuthentication.getAuthorizationExchange()
-			.getAuthorizationRequest().getScopes().contains(OidcScopes.OPENID)) {
+			.authorizationRequest().getScopes().contains(OidcScopes.OPENID)) {
 			// This is NOT an OpenID Connect Authentication Request so return null
 			// and let OAuth2LoginAuthenticationProvider handle it instead
 			return null;
 		}
 
 		OAuth2AuthorizationRequest authorizationRequest = authorizationCodeAuthentication
-			.getAuthorizationExchange().getAuthorizationRequest();
+			.getAuthorizationExchange().authorizationRequest();
 		OIDCLaunchFlowResponse authorizationResponse = authorizationCodeAuthentication
-			.getAuthorizationExchange().getAuthorizationResponse();
+			.getAuthorizationExchange().authorizationResponse();
 
 		if (authorizationResponse.statusError()) {
 			throw new OAuth2AuthenticationException(

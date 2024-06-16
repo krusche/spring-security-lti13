@@ -26,6 +26,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.util.Assert;
 import uk.ac.ox.ctl.lti13.security.oauth2.core.endpoint.OIDCLaunchFlowExchange;
 
+import java.io.Serial;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -43,10 +44,11 @@ import java.util.Collections;
  * @see <a target="_blank" href="https://tools.ietf.org/html/rfc6749#section-4.1">Section 4.1 Authorization Code Grant Flow</a>
  */
 public class OidcLaunchFlowToken extends AbstractAuthenticationToken {
+	@Serial
 	private static final long serialVersionUID = SpringSecurityCoreVersion.SERIAL_VERSION_UID;
 	private OidcUser principal;
-	private ClientRegistration clientRegistration;
-	private OIDCLaunchFlowExchange authorizationExchange;
+	private final ClientRegistration clientRegistration;
+	private final OIDCLaunchFlowExchange authorizationExchange;
 
 	/**
 	 * This constructor should be used when the Authorization Request/Response is complete.

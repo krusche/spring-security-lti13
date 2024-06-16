@@ -39,10 +39,8 @@ import uk.ac.ox.ctl.lti13.security.oauth2.client.lti.authentication.OidcAuthenti
 import uk.ac.ox.ctl.lti13.security.oauth2.core.endpoint.OIDCLaunchFlowExchange;
 import uk.ac.ox.ctl.lti13.security.oauth2.core.endpoint.OIDCLaunchFlowResponse;
 
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
 
 /**
  * An implementation of an {@link AbstractAuthenticationProcessingFilter} for OAuth 2.0 Login.
@@ -99,7 +97,7 @@ public class OAuth2LoginAuthenticationFilter extends AbstractAuthenticationProce
      */
     private static final String AUTHORIZATION_REQUEST_NOT_FOUND_ERROR_CODE = "authorization_request_not_found";
     private static final String CLIENT_REGISTRATION_NOT_FOUND_ERROR_CODE = "client_registration_not_found";
-    private ClientRegistrationRepository clientRegistrationRepository;
+    private final ClientRegistrationRepository clientRegistrationRepository;
     private AuthorizationRequestRepository<OAuth2AuthorizationRequest> authorizationRequestRepository =
             new HttpSessionOAuth2AuthorizationRequestRepository();
 
@@ -119,7 +117,7 @@ public class OAuth2LoginAuthenticationFilter extends AbstractAuthenticationProce
 
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
-            throws AuthenticationException, IOException, ServletException {
+            throws AuthenticationException {
 
         if (!isAuthorizationResponse(request)) {
             OAuth2Error oauth2Error = new OAuth2Error(OAuth2ErrorCodes.INVALID_REQUEST);
@@ -162,14 +160,12 @@ public class OAuth2LoginAuthenticationFilter extends AbstractAuthenticationProce
                 (OidcLaunchFlowToken) this.getAuthenticationManager().authenticate(authenticationRequest);
 
         // This is so that we can return the state to the client.
-        OidcAuthenticationToken oidcAuthenticationToken = new OidcAuthenticationToken(
+        return new OidcAuthenticationToken(
                 authenticationResult.getPrincipal(),
                 authenticationResult.getAuthorities(),
                 authenticationResult.getClientRegistration().getRegistrationId(),
                 authorizationResponse.getState()
         );
-
-        return oidcAuthenticationToken;
     }
 
     static boolean isAuthorizationResponse(HttpServletRequest request) {
